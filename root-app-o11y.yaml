@@ -8,7 +8,7 @@ spec:
   source:
     repoURL: REPLACE_WITH_REPO_URL
     targetRevision: main
-    path: deploy/gitops/apps-o11y
+    path: apps-o11y
     directory:
       recurse: true
   destination:
