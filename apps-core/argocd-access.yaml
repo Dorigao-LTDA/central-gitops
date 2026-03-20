@@ -1,16 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ct-framework
+  name: argocd-access
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: REPLACE_WITH_REPO_URL
+    repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
     targetRevision: main
-    path: deploy/gitops/apps-core
-    directory:
-      recurse: true
+    path: deploy/gitops/argocd-ingress
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

@@ -1,19 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ct-framework
+  name: pyroscope
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: REPLACE_WITH_REPO_URL
-    targetRevision: main
-    path: deploy/gitops/apps-core
-    directory:
-      recurse: true
+    repoURL: https://grafana.github.io/helm-charts
+    chart: pyroscope
+    targetRevision: "1.8.0"
+    helm:
+      values: |
+        service:
+          type: ClusterIP
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: observability
   syncPolicy:
     automated:
       prune: true

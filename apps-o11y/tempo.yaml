@@ -1,19 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ct-framework
+  name: tempo
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: REPLACE_WITH_REPO_URL
-    targetRevision: main
-    path: deploy/gitops/apps-core
-    directory:
-      recurse: true
+    repoURL: https://grafana.github.io/helm-charts
+    chart: tempo
+    targetRevision: "1.7.0"
+    helm:
+      values: |
+        tempo:
+          retention: 24h
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: observability
   syncPolicy:
     automated:
       prune: true
