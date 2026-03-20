@@ -1,0 +1,73 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: alloy
+    targetRevision: "0.5.0"
+    helm:
+      values: |
+        alloy:
+          configMap:
+            content: |
+              processors:
+                k8sattributes:
+                  auth_type: serviceAccount
+                  extract:
+                    metadata:
+                      - k8s.namespace.name
+                      - k8s.pod.name
+                      - k8s.node.name
+                resource:
+                  attributes:
+                    - key: cloud.provider
+                      value: azure
+                      action: upsert
+
+              receivers:
+                otlp:
+                  protocols:
+                    grpc:
+                    http:
+              exporters:
+                prometheusremotewrite:
+                  endpoint: http://mimir-distributed-nginx.observability.svc.cluster.local/api/v1/push
+                loki:
+                  endpoint: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
+                otlp/tempo:
+                  endpoint: tempo.observability.svc.cluster.local:4317
+                  tls:
+                    insecure: true
+                otlp/pyroscope:
+                  endpoint: pyroscope.observability.svc.cluster.local:4040
+                  tls:
+                    insecure: true
+              service:
+                pipelines:
+                  metrics:
+                    receivers: [otlp]
+                    processors: [k8sattributes, resource]
+                    exporters: [prometheusremotewrite]
+                  logs:
+                    receivers: [otlp]
+                    processors: [k8sattributes, resource]
+                    exporters: [loki]
+                  traces:
+                    receivers: [otlp]
+                    processors: [k8sattributes, resource]
+                    exporters: [otlp/tempo]
+                  profiles:
+                    receivers: [otlp]
+                    processors: [k8sattributes, resource]
+                    exporters: [otlp/pyroscope]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

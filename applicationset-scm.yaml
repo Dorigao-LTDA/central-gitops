@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: repo-discovery-scm
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        github:
+          organization: Dorigao-LTDA
+          tokenRef:
+            secretName: github-token
+            key: token
+        filters:
+          - repositoryMatch: "^svc-.*"
+  template:
+    metadata:
+      name: "{{repository}}"
+    spec:
+      project: default
+      source:
+        repoURL: "{{url}}"
+        targetRevision: main
+        path: deploy/helm
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: app
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: repo-discovery
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: REPLACE_WITH_REPO_URL
+        revision: main
+        directories:
+          - path: tenants/*/apps/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: REPLACE_WITH_REPO_URL
+        targetRevision: main
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: app
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
