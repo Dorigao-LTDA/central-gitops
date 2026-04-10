@@ -4,5 +4,5 @@ metadata:
   name: argocd-cm
   namespace: argocd
 data:
-  url: https://argocd.undo.it
+  url: https://REPLACE_WITH_ARGOCD_DOMAIN
   server.insecure: "true"

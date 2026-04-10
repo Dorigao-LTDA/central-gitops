@@ -6,9 +6,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
+    repoURL: REPLACE_WITH_REPO_URL
     targetRevision: main
-    path: deploy/gitops/argocd-ingress
+    path: argocd-ingress
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
