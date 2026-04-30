@@ -14,60 +14,61 @@ spec:
         alloy:
           configMap:
             content: |
-              processors:
-                k8sattributes:
-                  auth_type: serviceAccount
-                  extract:
-                    metadata:
-                      - k8s.namespace.name
-                      - k8s.pod.name
-                      - k8s.node.name
-                resource:
-                  attributes:
-                    - key: cloud.provider
-                      value: azure
-                      action: upsert
+              otelcol.receiver.otlp "default" {
+                grpc {
+                  endpoint = "0.0.0.0:4317"
+                }
+                http {
+                  endpoint = "0.0.0.0:4318"
+                }
+                output {
+                  metrics = [otelcol.processor.k8sattributes.default.input]
+                  logs    = [otelcol.processor.k8sattributes.default.input]
+                  traces  = [otelcol.processor.k8sattributes.default.input]
+                }
+              }
 
-              receivers:
-                otlp:
-                  protocols:
-                    grpc:
-                    http:
-              exporters:
-                prometheusremotewrite:
-                  endpoint: http://mimir-distributed-nginx.observability.svc.cluster.local/api/v1/push
-                loki:
-                  endpoint: http://loki-gateway.observability.svc.cluster.local/loki/api/v1/push
-                otlp/tempo:
-                  endpoint: tempo.observability.svc.cluster.local:4317
-                  tls:
-                    insecure: true
-                otlp/pyroscope:
-                  endpoint: pyroscope.observability.svc.cluster.local:4040
-                  tls:
-                    insecure: true
-              service:
-                pipelines:
-                  metrics:
-                    receivers: [otlp]
-                    processors: [k8sattributes, resource]
-                    exporters: [prometheusremotewrite]
-                  logs:
-                    receivers: [otlp]
-                    processors: [k8sattributes, resource]
-                    exporters: [loki]
-                  traces:
-                    receivers: [otlp]
-                    processors: [k8sattributes, resource]
-                    exporters: [otlp/tempo]
-                  profiles:
-                    receivers: [otlp]
-                    processors: [k8sattributes, resource]
-                    exporters: [otlp/pyroscope]
+              otelcol.processor.k8sattributes "default" {
+                output {
+                  metrics = [otelcol.exporter.otlphttp.mimir.input]
+                  logs    = [otelcol.exporter.otlphttp.loki.input]
+                  traces  = [otelcol.exporter.otlphttp.tempo.input]
+                }
+                extract {
+                  metadata = ["k8s.namespace.name", "k8s.pod.name", "k8s.node.name"]
+                }
+              }
+
+              otelcol.exporter.otlphttp "mimir" {
+                client {
+                  endpoint = "http://mimir-distributed-nginx.observability.svc.cluster.local:4318"
+                  tls {
+                    insecure = true
+                  }
+                }
+              }
+
+              otelcol.exporter.otlphttp "loki" {
+                client {
+                  endpoint = "http://loki-gateway.observability.svc.cluster.local:4318"
+                  tls {
+                    insecure = true
+                  }
+                }
+              }
+
+              otelcol.exporter.otlphttp "tempo" {
+                client {
+                  endpoint = "http://tempo.observability.svc.cluster.local:4318"
+                  tls {
+                    insecure = true
+                  }
+                }
+              }
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
   syncPolicy:
     automated:
       prune: true
-      selfHeal: true
+      selfHeal: false
