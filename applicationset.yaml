@@ -6,7 +6,7 @@ metadata:
 spec:
   generators:
     - git:
-        repoURL: REPLACE_WITH_REPO_URL
+        repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
         revision: main
         directories:
           - path: tenants/*/apps/*
@@ -16,7 +16,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: REPLACE_WITH_REPO_URL
+        repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
         targetRevision: main
         path: '{{path}}'
       destination:
