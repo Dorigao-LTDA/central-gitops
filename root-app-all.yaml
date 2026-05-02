@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ct-framework-all
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
+    targetRevision: main
+    path: .
+    directory:
+      recurse: true
+      exclude: "{root-*.yaml,*.md,*.sh,.gitignore}"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
