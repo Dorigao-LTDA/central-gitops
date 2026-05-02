@@ -1,19 +1,19 @@
 # Configuração do microserviço Pedido
-# Ajuste conforme necessário para seu ambiente
+# Spring Boot + Java 25 + OpenTelemetry nativo
 
-replicaCount: 1
+replicaCount: 2
 
 image:
   # Substitua pelo seu ACR
   # Exemplo: acrctframework.azurecr.io/pedido
-  repository: nginx
-  tag: "alpine"
-  pullPolicy: IfNotPresent
+  repository: <SEU_ACR>.azurecr.io/pedido
+  tag: "latest"
+  pullPolicy: Always
 
 service:
   type: ClusterIP
-  port: 80
-  targetPort: 80
+  port: 8080
+  targetPort: 8080
 
 ingress:
   enabled: true
@@ -26,35 +26,48 @@ ingress:
         - path: /
           pathType: Prefix
 
-# Configuração OpenTelemetry
+# Environment variables — OpenTelemetry + Observabilidade
 env:
-  - name: OTEL_EXPORTER_OTLP_ENDPOINT
-    value: "http://alloy.observability.svc.cluster.local:4318"
   - name: OTEL_SERVICE_NAME
     value: "pedido"
-  - name: OTEL_RESOURCE_ATTRIBUTES
-    value: "service.namespace=app,service.name=pedido"
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://alloy.observability.svc.cluster.local:4318"
+  - name: OTEL_RESOURCE_ATTRIBUTES_SERVICE_NAMESPACE
+    value: "app"
+  - name: DEPLOY_ENV
+    value: "production"
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: SERVER_PORT
+    value: "8080"
 
-# Recursos - ajuste conforme necessidade
+# Recursos — sizing guide do NFR
 resources:
   limits:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 500m
+    memory: 512Mi
   requests:
-    cpu: 50m
-    memory: 64Mi
+    cpu: 200m
+    memory: 256Mi
 
-# Configuração de probes
+# Health probes
 livenessProbe:
   httpGet:
-    path: /
-    port: 80
-  initialDelaySeconds: 10
+    path: /health/liveness
+    port: 8080
+  initialDelaySeconds: 30
   periodSeconds: 10
+  timeoutSeconds: 5
 
 readinessProbe:
   httpGet:
-    path: /
-    port: 80
-  initialDelaySeconds: 5
+    path: /health/readiness
+    port: 8080
+  initialDelaySeconds: 10
   periodSeconds: 5
+  timeoutSeconds: 3
+
+# Labels para Chaos Mesh
+podLabels:
+  app: pedido
+  app.kubernetes.io/name: pedido
