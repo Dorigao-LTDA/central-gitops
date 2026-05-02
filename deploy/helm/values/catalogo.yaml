@@ -1,0 +1,27 @@
+replicaCount: 2
+
+image:
+  repository: REPLACE_WITH_ACR/catalogo
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: catalogo.dorigao.dev.br
+      paths:
+        - path: /
+          pathType: Prefix
+
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: "http://alloy.observability.svc.cluster.local:4318"
+  - name: OTEL_SERVICE_NAME
+    value: "catalogo"
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    value: "service.namespace=app,service.name=catalogo"

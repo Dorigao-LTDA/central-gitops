@@ -1,0 +1,37 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ""
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  path: "/"
+
+podAnnotations: {}
+
+extraEnv: []
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+otel:
+  enabled: true
+  otlpEndpoint: "http://alloy.observability.svc.cluster.local:4318"
+  serviceName: ""
+  resourceAttributes: "service.namespace=default"
+  tracesSampler: "parentbased_traceidratio"
+  tracesSamplerArg: "0.1"
