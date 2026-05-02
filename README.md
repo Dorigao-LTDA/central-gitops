@@ -2,79 +2,24 @@
 
 Bootstrap GitOps para o projeto ct-framework usando o padrão App-of-Apps.
 
-## 📋 Pré-requisitos
-
-- AKS cluster deployado via Terraform (`infra-platform`)
-- ACR (Azure Container Registry) criado
-- IP Público do Azure para Ingress (opcional, mas recomendado)
-
-## 🚀 Bootstrap do GitOps
-
-Após o deploy da infraestrutura via Terraform, execute o bootstrap manual:
-
-### 1. Configurar acesso ao cluster
-
-```bash
-# Obter credenciais do AKS
-az aks get-credentials --resource-group <AKS_RESOURCE_GROUP> --name <AKS_CLUSTER_NAME>
-
-# Verificar conexão
-kubectl get nodes
-```
-
-### 2. Aplicar Root Applications
-
-```bash
-# Aplicar app principal (core apps)
-kubectl apply -f root-app.yaml
-
-# Aplicar observability stack
-kubectl apply -f root-app-o11y.yaml
-
-# Verificar aplicações
-kubectl get applications -n argocd
-```
-
-### 3. Configurar Ingress (IMPORTANTE!)
-
-O arquivo `apps-core/ingress-nginx.yaml` contém um placeholder que precisa ser substituído:
-
-```bash
-# Obter o IP público do Ingress (se criado manualmente no Azure)
-# ou deixe o Azure criar um automaticamente removendo a linha loadBalancerIP
-
-# Editar apps-core/ingress-nginx.yaml
-# Substitua: REPLACE_WITH_INGRESS_PUBLIC_IP
-# Pelo seu IP público ou remova a linha para IP dinâmico
-```
-
-### 4. Configurar ACR
-
-Substitua `REPLACE_WITH_ACR` nos arquivos de values:
-- `deploy/helm/values/catalogo.yaml`
-- `deploy/helm/values/pedido.yaml`
-- `deploy/helm/values/pagamento.yaml`
-
-```bash
-# Obter o login server do ACR
-az acr show --name <ACR_NAME> --query loginServer -o tsv
-
-# Exemplo: acrctframework.azurecr.io
-```
-
-## 📁 Estrutura do Repositório
+## 📋 Estrutura
 
 ```
 .
 ├── root-app.yaml              # Root application - core
 ├── root-app-o11y.yaml         # Root application - observability
 ├── apps-core/                 # Aplicações core
+│   ├── namespace-ingress.yaml # Namespace ingress-nginx
+│   ├── namespace-app.yaml     # Namespace app
 │   ├── argocd-access.yaml     # Ingress do ArgoCD
 │   ├── ingress-nginx.yaml     # NGINX Ingress Controller
 │   ├── catalogo.yaml          # Microserviço
 │   ├── pedido.yaml            # Microserviço
-│   └── pagamento.yaml         # Microserviço
+│   ├── pagamento.yaml         # Microserviço
+│   ├── applicationset.yaml    # Discovery de apps por diretório
+│   └── applicationset-scm.yaml # Discovery por SCM
 ├── apps-o11y/                 # Stack de observabilidade
+│   ├── namespace.yaml         # Namespace observability
 │   ├── alloy.yaml            # OTLP Collector
 │   ├── grafana.yaml          # Dashboards
 │   ├── loki.yaml             # Logs
@@ -83,66 +28,156 @@ az acr show --name <ACR_NAME> --query loginServer -o tsv
 │   └── pyroscope.yaml        # Profiling
 ├── argocd-ingress/            # Manifestos de ingress
 │   └── ingress.yaml
-├── deploy/helm/               # Helm charts
-│   ├── service-chart/        # Chart genérico para microserviços
-│   └── values/               # Values específicos por serviço
-└── README.md
+└── deploy/helm/               # Helm charts
+    ├── service-chart/        # Chart genérico para microserviços
+    └── values/               # Values específicos por serviço
+        ├── catalogo.yaml
+        ├── pedido.yaml
+        └── pagamento.yaml
 ```
 
-## 🔧 Troubleshooting
+## 🚀 Bootstrap
 
-### Aplicações em estado "Unknown" ou "Missing"
+Após o deploy da infraestrutura via Terraform, execute o bootstrap manual:
 
-Verifique os logs do ArgoCD:
 ```bash
-kubectl logs -n argocd deployment/argocd-application-controller
-```
+# 1. Configurar acesso ao cluster
+az aks get-credentials --resource-group <AKS_RESOURCE_GROUP> --name <AKS_CLUSTER_NAME>
 
-### Erro: "path does not exist"
-
-Se o ArgoCD reportar que um path não existe:
-1. Verifique se o diretório existe neste repo
-2. Confirme que o repo está sincronizado
-3. Verifique as permissões de acesso do ArgoCD ao repo
-
-### Observabilidade não aparece
-
-Verifique se o namespace existe:
-```bash
-kubectl create namespace observability
+# 2. Aplicar root applications
+kubectl apply -f root-app.yaml
 kubectl apply -f root-app-o11y.yaml
+
+# 3. Verificar aplicações
+kubectl get applications -n argocd
+
+# 4. Aguardar sincronização
+kubectl get applications -n argocd -w
 ```
 
-### Microserviços não iniciam
+## ⚙️ Configurações Importantes
 
-1. Verifique se as imagens existem no ACR
-2. Confirme se o AKS tem acesso ao ACR (AcrPull role)
-3. Verifique os values no diretório `deploy/helm/values/`
+### 🔧 Configurando seu ACR
 
-### ArgoCD não acessível
+Os microserviços (catalogo, pedido, pagamento) usam uma imagem nginx por padrão para demonstração.
 
-Por padrão, o ArgoCD usa ClusterIP. Para acessar:
+Para usar seu próprio ACR, edite os arquivos em `deploy/helm/values/`:
+
+```yaml
+image:
+  # Substitua pelo seu ACR
+  # Exemplo: acrctframework.azurecr.io/catalogo
+  repository: <SEU_ACR>.azurecr.io/catalogo
+  tag: "latest"
+```
+
+**Aplicar mudanças:**
+```bash
+# Após editar e commitar, force sync
+kubectl patch application catalogo -n argocd -p '{"operation":"sync"}' --type=merge
+```
+
+### 🔧 Configurando DNS e Ingress
+
+O Ingress Controller usa **IP dinâmico** do Azure por padrão. Para configurar seu domínio:
+
+```bash
+# 1. Obter o IP atribuído pelo Azure
+kubectl get svc -n ingress-nginx
+# Anote o valor em EXTERNAL-IP
+
+# 2. Configure seu DNS para apontar para este IP
+# catalogo.dorigao.dev.br -> <IP_DO_INGRESS>
+# pedido.dorigao.dev.br -> <IP_DO_INGRESS>
+# pagamento.dorigao.dev.br -> <IP_DO_INGRESS>
+```
+
+**Para usar IP estático:**
+
+Edite `apps-core/ingress-nginx.yaml` e adicione:
+
+```yaml
+controller:
+  service:
+    type: LoadBalancer
+    loadBalancerIP: "SEU.IP.AQUI.ESTATICO"
+```
+
+### 🔧 Configurando ArgoCD UI
+
+Por padrão, o ArgoCD é acessível apenas via port-forward:
+
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+Acesse: https://localhost:8080
+
+**Credenciais:**
+- Username: `admin`
+- Password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+
+Para expor via DNS, edite `argocd-ingress/ingress.yaml` com seu domínio e certificado.
+
+## 📊 Componentes
+
+### Observability Stack
+
+| Componente | Propósito | URL Interna |
+|------------|-----------|-------------|
+| **Alloy** | Coletor OTLP | `alloy.observability.svc.cluster.local:4318` |
+| **Grafana** | Dashboards | `grafana.observability.svc.cluster.local:3000` |
+| **Loki** | Logs | `loki-gateway.observability.svc.cluster.local:4318` |
+| **Mimir** | Métricas | `mimir-distributed-nginx.observability.svc.cluster.local:4318` |
+| **Tempo** | Traces | `tempo.observability.svc.cluster.local:4318` |
+| **Pyroscope** | Profiling | `pyroscope.observability.svc.cluster.local:4040` |
+
+### Acesso ao Grafana
+
 ```bash
 # Port-forward
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl port-forward svc/grafana -n observability 3000:80
 
-# Acesse: https://localhost:8080
-# Senha inicial:
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+# Acesse http://localhost:3000
+# Login: admin / changeme (altere no arquivo grafana.yaml)
 ```
 
-Para expor via Ingress (requer IP público):
-1. Configure o `argocd-access.yaml`
-2. Atualize o DNS para apontar para o IP do Ingress
+## 🔍 Troubleshooting
+
+### Aplicações em estado "Unknown"
+
+```bash
+# Verificar detalhes
+kubectl describe application <nome> -n argocd
+
+# Forçar sincronização
+kubectl patch application <nome> -n argocd -p '{"operation":"sync"}' --type=merge
+```
+
+### Pods com ImagePullBackOff
+
+Verifique se o AKS tem acesso ao ACR:
+
+```bash
+# Conectar ACR ao AKS
+az aks update --name <AKS_NAME> --resource-group <AKS_RG> --attach-acr <ACR_NAME>
+```
+
+### Logs do ArgoCD
+
+```bash
+kubectl logs -n argocd deployment/argocd-application-controller --tail=100
+```
 
 ## 📝 Notas
 
+- Namespaces são criados automaticamente pelos manifests em `apps-core/` e `apps-o11y/`
 - Todas as aplicações têm syncPolicy automático habilitado
 - O alloy (observability) tem `selfHeal: false` para evitar conflitos de configuração
 - Os microserviços são configurados via Helm chart genérico em `deploy/helm/service-chart/`
-- OTLS (OpenTelemetry) está configurado por padrão em todos os serviços
+- OTLP (OpenTelemetry) está configurado por padrão em todos os serviços
 
-## 🔗 Links Úteis
+## 🔗 Links
 
 - [Repositório Infra Platform](https://github.com/Dorigao-LTDA/infra-platform)
 - [Documentação ArgoCD](https://argo-cd.readthedocs.io/)

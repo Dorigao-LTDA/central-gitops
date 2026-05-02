@@ -1,23 +1,32 @@
-replicaCount: 2
+# Configuração do microserviço Pagamento
+# Ajuste conforme necessário para seu ambiente
+
+replicaCount: 1
 
 image:
-  repository: REPLACE_WITH_ACR/pagamento
-  tag: latest
+  # Substitua pelo seu ACR
+  # Exemplo: acrctframework.azurecr.io/pagamento
+  repository: nginx
+  tag: "alpine"
   pullPolicy: IfNotPresent
 
 service:
   type: ClusterIP
-  port: 8080
+  port: 80
+  targetPort: 80
 
 ingress:
   enabled: true
   className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
   hosts:
     - host: pagamento.dorigao.dev.br
       paths:
         - path: /
           pathType: Prefix
 
+# Configuração OpenTelemetry
 env:
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: "http://alloy.observability.svc.cluster.local:4318"
@@ -25,3 +34,27 @@ env:
     value: "pagamento"
   - name: OTEL_RESOURCE_ATTRIBUTES
     value: "service.namespace=app,service.name=pagamento"
+
+# Recursos - ajuste conforme necessidade
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Configuração de probes
+livenessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 5
