@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: service-discovery-scm
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        github:
+          organization: Dorigao-LTDA
+          tokenRef:
+            secretName: github-token
+            key: token
+        filters:
+          - repositoryMatch: "^svc-.*"
+          - labelMatch: "auto-deploy"
+  template:
+    metadata:
+      name: "{{repository}}"
+    spec:
+      project: default
+      sources:
+        - repoURL: https://github.com/Dorigao-LTDA/central-gitops.git
+          targetRevision: main
+          path: deploy/helm/service-chart
+          helm:
+            valueFiles:
+              - $values/deploy/values.yaml
+        - repoURL: "{{url}}"
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: app
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

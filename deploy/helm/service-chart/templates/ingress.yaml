@@ -5,8 +5,29 @@ metadata:
   name: {{ include "microservice.fullname" . }}
   labels:
 {{ include "microservice.labels" . | indent 4 }}
+{{- if .Values.ingress.annotations }}
+  annotations:
+{{ toYaml .Values.ingress.annotations | indent 4 }}
+{{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
+{{- if .Values.ingress.hosts }}
+  rules:
+  {{- range .Values.ingress.hosts }}
+    - host: {{ .host }}
+      http:
+        paths:
+        {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "microservice.fullname" $ }}
+                port:
+                  number: {{ $.Values.service.port }}
+        {{- end }}
+  {{- end }}
+{{- else }}
   rules:
     - host: {{ .Values.ingress.host }}
       http:
@@ -18,4 +39,5 @@ spec:
                 name: {{ include "microservice.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}
+{{- end }}
 {{- end -}}
