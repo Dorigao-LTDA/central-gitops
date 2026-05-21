@@ -1,12 +1,12 @@
 # Configuração do microserviço Catalogo
 # Spring Boot + Java 25 + OpenTelemetry nativo
 
+fullnameOverride: catalogo
+
 replicaCount: 2
 
 image:
-  # Substitua pelo seu ACR
-  # Exemplo: acrctframework.azurecr.io/catalogo
-  repository: <SEU_ACR>.azurecr.io/catalogo
+  repository: acrctframework.azurecr.io/catalogo
   tag: "latest"
   pullPolicy: Always
 
@@ -27,7 +27,7 @@ ingress:
           pathType: Prefix
 
 # Environment variables — OpenTelemetry + Observabilidade
-env:
+extraEnv:
   - name: OTEL_SERVICE_NAME
     value: "catalogo"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT

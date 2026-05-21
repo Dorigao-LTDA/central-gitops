@@ -1,12 +1,12 @@
 # Configuração do microserviço Pedido
 # Spring Boot + Java 25 + OpenTelemetry nativo
 
+fullnameOverride: pedido
+
 replicaCount: 2
 
 image:
-  # Substitua pelo seu ACR
-  # Exemplo: acrctframework.azurecr.io/pedido
-  repository: <SEU_ACR>.azurecr.io/pedido
+  repository: acrctframework.azurecr.io/pedido
   tag: "latest"
   pullPolicy: Always
 
@@ -27,7 +27,7 @@ ingress:
           pathType: Prefix
 
 # Environment variables — OpenTelemetry + Observabilidade
-env:
+extraEnv:
   - name: OTEL_SERVICE_NAME
     value: "pedido"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
