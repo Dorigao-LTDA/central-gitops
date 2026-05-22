@@ -1,12 +1,12 @@
 # Configuração do microserviço Pagamento
 # Spring Boot + Java 25 + OpenTelemetry nativo
 
+fullnameOverride: pagamento
+
 replicaCount: 2
 
 image:
-  # Substitua pelo seu ACR
-  # Exemplo: acrctframework.azurecr.io/pagamento
-  repository: <SEU_ACR>.azurecr.io/pagamento
+  repository: acrctframework.azurecr.io/pagamento
   tag: "latest"
   pullPolicy: Always
 
@@ -27,7 +27,7 @@ ingress:
           pathType: Prefix
 
 # Environment variables — OpenTelemetry + Observabilidade
-env:
+extraEnv:
   - name: OTEL_SERVICE_NAME
     value: "pagamento"
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
