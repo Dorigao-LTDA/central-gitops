@@ -67,7 +67,6 @@ readinessProbe:
   periodSeconds: 5
   timeoutSeconds: 3
 
-# Labels para Chaos Mesh
+# Labels para Chaos Mesh (app usada para seleção de pods)
 podLabels:
   app: catalogo
-  app.kubernetes.io/name: catalogo
