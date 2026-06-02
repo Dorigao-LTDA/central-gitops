@@ -31,6 +31,12 @@ spec:
           replicas: 0
         backend:
           replicas: 0
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
+        gateway:
+          enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
