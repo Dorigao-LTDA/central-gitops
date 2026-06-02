@@ -25,6 +25,12 @@ spec:
           useTestSchema: true
         singleBinary:
           replicas: 1
+        write:
+          replicas: 0
+        read:
+          replicas: 0
+        backend:
+          replicas: 0
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
