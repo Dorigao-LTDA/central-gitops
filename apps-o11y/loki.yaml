@@ -21,6 +21,7 @@ spec:
               chunks: chunks
               ruler: ruler
               admin: admin
+          useTestSchema: true
         singleBinary:
           replicas: 1
         gateway:
