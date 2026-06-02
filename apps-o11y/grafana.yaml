@@ -14,6 +14,29 @@ spec:
         adminPassword: "changeme"
         service:
           type: ClusterIP
+        plugins:
+          - grafana-pyroscope-datasource
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+            - name: Mimir
+              type: prometheus
+              url: http://mimir-gateway.observability.svc.cluster.local:80/prometheus
+              access: proxy
+              isDefault: true
+            - name: Loki
+              type: loki
+              url: http://loki.observability.svc.cluster.local:3100
+              access: proxy
+            - name: Tempo
+              type: tempo
+              url: http://tempo.observability.svc.cluster.local:3200
+              access: proxy
+            - name: Pyroscope
+              type: grafana-pyroscope-datasource
+              url: http://pyroscope.observability.svc.cluster.local:4040
+              access: proxy
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
