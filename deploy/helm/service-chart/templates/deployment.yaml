@@ -19,12 +19,24 @@ spec:
       annotations:
 {{ toYaml .Values.podAnnotations | indent 8 }}
     spec:
+{{- if .Values.initContainers }}
+      initContainers:
+{{ toYaml .Values.initContainers | indent 8 }}
+{{- end }}
+{{- if .Values.extraVolumes }}
+      volumes:
+{{ toYaml .Values.extraVolumes | indent 8 }}
+{{- end }}
       containers:
         - name: app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.port }}
+{{- if .Values.extraVolumeMounts }}
+          volumeMounts:
+{{ toYaml .Values.extraVolumeMounts | indent 12 }}
+{{- end }}
           env:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "{{ .Values.otel.otlpEndpoint }}"

@@ -40,6 +40,34 @@ extraEnv:
     value: "INFO"
   - name: SERVER_PORT
     value: "8080"
+  - name: PYROSCOPE_APPLICATION_NAME
+    value: "pedido"
+  - name: PYROSCOPE_SERVER_ADDRESS
+    value: "http://pyroscope.observability.svc.cluster.local:4040"
+  - name: JAVA_TOOL_OPTIONS
+    value: "-javaagent:/opt/pyroscope/pyroscope-java-agent.jar"
+
+# Pyroscope Java agent — init container baixa o agent JAR
+initContainers:
+  - name: pyroscope-agent
+    image: curlimages/curl:8.5.0
+    command:
+      - /bin/sh
+      - -c
+      - |
+        curl -L -o /opt/pyroscope/pyroscope-java-agent.jar \
+          https://github.com/grafana/pyroscope-java/releases/download/v0.12.2/pyroscope-java-agent-0.12.2.jar
+    volumeMounts:
+      - name: pyroscope-agent
+        mountPath: /opt/pyroscope
+
+extraVolumes:
+  - name: pyroscope-agent
+    emptyDir: {}
+
+extraVolumeMounts:
+  - name: pyroscope-agent
+    mountPath: /opt/pyroscope
 
 # Recursos — sizing guide do NFR
 resources:

@@ -44,6 +44,12 @@ readinessProbe: {}
 
 extraEnv: []
 
+initContainers: []
+
+extraVolumes: []
+
+extraVolumeMounts: []
+
 resources:
   requests:
     cpu: "100m"
