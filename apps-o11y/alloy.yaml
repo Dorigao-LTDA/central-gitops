@@ -41,7 +41,7 @@ spec:
 
               otelcol.exporter.otlphttp "mimir" {
                 client {
-                  endpoint = "http://mimir-distributed-nginx.observability.svc.cluster.local:4318"
+                  endpoint = "http://mimir-distributed-nginx.observability.svc.cluster.local:80/otlp"
                   tls {
                     insecure = true
                   }
@@ -50,7 +50,7 @@ spec:
 
               otelcol.exporter.otlphttp "loki" {
                 client {
-                  endpoint = "http://loki-gateway.observability.svc.cluster.local:4318"
+                  endpoint = "http://loki.observability.svc.cluster.local:3100/otlp"
                   tls {
                     insecure = true
                   }
@@ -65,6 +65,44 @@ spec:
                   }
                 }
               }
+          extraPorts:
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 12345
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 12345
+            initialDelaySeconds: 30
+            periodSeconds: 15
+        service:
+          extraPorts:
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
