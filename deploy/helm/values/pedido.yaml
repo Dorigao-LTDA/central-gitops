@@ -45,18 +45,34 @@ extraEnv:
   - name: PYROSCOPE_SERVER_ADDRESS
     value: "http://pyroscope.observability.svc.cluster.local:4040"
   - name: JAVA_TOOL_OPTIONS
-    value: "-javaagent:/opt/pyroscope/pyroscope-java-agent.jar"
+    value: "-javaagent:/opt/pyroscope/pyroscope.jar"
 
 # Pyroscope Java agent — init container baixa o agent JAR
 initContainers:
   - name: pyroscope-agent
-    image: curlimages/curl:8.5.0
+    image: alpine:3.19
     command:
       - /bin/sh
       - -c
       - |
-        curl -L -o /opt/pyroscope/pyroscope-java-agent.jar \
-          https://github.com/grafana/pyroscope-java/releases/download/v0.12.2/pyroscope-java-agent-0.12.2.jar
+        set -ex
+        echo "Installing curl..."
+        apk add --no-cache curl ca-certificates
+        
+        echo "Downloading Pyroscope agent..."
+        curl -fSL -o /opt/pyroscope/pyroscope.jar \
+          https://github.com/grafana/pyroscope-java/releases/download/v2.5.4/pyroscope.jar
+        
+        if [ ! -s /opt/pyroscope/pyroscope.jar ]; then
+          echo "ERROR: Pyroscope agent download failed or file is empty"
+          exit 1
+        fi
+        
+        echo "Pyroscope agent downloaded successfully"
+        ls -lh /opt/pyroscope/pyroscope.jar
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
     volumeMounts:
       - name: pyroscope-agent
         mountPath: /opt/pyroscope
