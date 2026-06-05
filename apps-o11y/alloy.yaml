@@ -30,7 +30,7 @@ spec:
 
               otelcol.processor.k8sattributes "default" {
                 output {
-                  metrics = [otelcol.exporter.otlphttp.mimir.input]
+                  metrics = [otelcol.processor.batch.mimir.input]
                   logs    = [otelcol.exporter.otlphttp.loki.input]
                   traces  = [otelcol.exporter.otlphttp.tempo.input]
                 }
@@ -39,12 +39,17 @@ spec:
                 }
               }
 
-              otelcol.exporter.otlphttp "mimir" {
-                client {
-                  endpoint = "http://mimir-distributed-nginx.observability.svc.cluster.local:80/otlp"
-                  tls {
-                    insecure = true
-                  }
+              otelcol.processor.batch "mimir" {
+                send_batch_size = 1000
+                timeout = "5s"
+                output {
+                  metrics = [otelcol.exporter.prometheusremotewrite.mimir.input]
+                }
+              }
+
+              otelcol.exporter.prometheusremotewrite "mimir" {
+                endpoint {
+                  url = "http://mimir-distributor.observability.svc.cluster.local:9009/api/v1/push"
                 }
               }
 
@@ -57,9 +62,9 @@ spec:
                 }
               }
 
-              otelcol.exporter.otlphttp "tempo" {
+              otelcol.exporter.otlp "tempo" {
                 client {
-                  endpoint = "http://tempo.observability.svc.cluster.local:4318"
+                  endpoint = "tempo-distributor.observability.svc.cluster.local:4317"
                   tls {
                     insecure = true
                   }

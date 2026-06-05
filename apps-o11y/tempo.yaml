@@ -13,6 +13,25 @@ spec:
       values: |
         tempo:
           retention: 24h
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: "0.0.0.0:4317"
+                http:
+                  endpoint: "0.0.0.0:4318"
+          distributors:
+            replicas: 1
+          ingesters:
+            replicas: 1
+          queriers:
+            replicas: 1
+          queryFrontend:
+            replicas: 1
+          compactor:
+            replicas: 1
+          metricsGenerator:
+            replicas: 1
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
