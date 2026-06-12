@@ -1,184 +1,148 @@
-# Argo CD - GitOps Bootstrap
+# central-gitops
 
-Bootstrap GitOps para o projeto ct-framework usando o padrão App-of-Apps.
+Repositorio GitOps para o Continuous Testing Framework. Contem os manifests do Argo CD no padrao App-of-Apps, os values de Helm por microsservico e os ApplicationSets para descoberta automatica de servicos.
 
-## 📋 Estrutura
+## Estrutura
 
 ```
-.
-├── root-app.yaml              # Root application - core
-├── root-app-o11y.yaml         # Root application - observability
-├── apps-core/                 # Aplicações core
-│   ├── namespace-ingress.yaml # Namespace ingress-nginx
-│   ├── namespace-app.yaml     # Namespace app
-│   ├── argocd-access.yaml     # Ingress do ArgoCD
-│   ├── ingress-nginx.yaml     # NGINX Ingress Controller
-│   ├── catalogo.yaml          # Microserviço
-│   ├── pedido.yaml            # Microserviço
-│   ├── pagamento.yaml         # Microserviço
-│   ├── applicationset.yaml    # Discovery de apps por diretório
-│   └── applicationset-scm.yaml # Discovery por SCM
-├── apps-o11y/                 # Stack de observabilidade
-│   ├── namespace.yaml         # Namespace observability
-│   ├── alloy.yaml            # OTLP Collector
-│   ├── grafana.yaml          # Dashboards
-│   ├── loki.yaml             # Logs
-│   ├── mimir.yaml            # Métricas
-│   ├── tempo.yaml            # Traces
-│   └── pyroscope.yaml        # Profiling
-├── argocd-ingress/            # Manifestos de ingress
-│   └── ingress.yaml
-└── deploy/helm/               # Helm charts
-    ├── service-chart/        # Chart genérico para microserviços
-    └── values/               # Values específicos por serviço
-        ├── catalogo.yaml
-        ├── pedido.yaml
-        └── pagamento.yaml
+central-gitops/
+  root-app.yaml           # ct-framework: escaneia apps-core/
+  root-app-o11y.yaml      # ct-framework-o11y: escaneia apps-o11y/
+  root-app-all.yaml       # ct-framework-all: escaneia tudo (alternativo)
+  apps-core/
+    namespace-ingress.yaml
+    namespace-app.yaml
+    argocd-access.yaml
+    ingress-nginx.yaml
+    catalogo.yaml
+    pagamento.yaml
+    pedido.yaml
+    applicationset.yaml         # Directory generator: tenants/*/apps/*
+    applicationset-scm.yaml     # SCM provider: svc-* com label auto-deploy
+  apps-o11y/
+    namespace.yaml
+    alloy.yaml
+    grafana.yaml
+    loki.yaml
+    mimir.yaml
+    tempo.yaml
+    pyroscope.yaml
+  deploy/
+    helm/service-chart/   # Helm chart generico (copia de infra-platform)
+    helm/values/
+      catalogo.yaml
+      pagamento.yaml
+      pedido.yaml
+  argocd-ingress/
+    ingress.yaml          # Ingress opcional para o Argo CD UI
 ```
 
-## 🚀 Bootstrap
+## Bootstrap
 
-Após o deploy da infraestrutura via Terraform, execute o bootstrap manual:
+Apos o Terraform provisionar a infraestrutura (AKS + Argo CD), a pipeline do `infra-platform` aplica automaticamente os root-apps:
 
 ```bash
-# 1. Configurar acesso ao cluster
-az aks get-credentials --resource-group <AKS_RESOURCE_GROUP> --name <AKS_CLUSTER_NAME>
-
-# 2. Aplicar root applications
-kubectl apply -f root-app.yaml
-kubectl apply -f root-app-o11y.yaml
-
-# 3. Verificar aplicações
-kubectl get applications -n argocd
-
-# 4. Aguardar sincronização
-kubectl get applications -n argocd -w
+kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app.yaml
+kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app-o11y.yaml
 ```
 
-## ⚙️ Configurações Importantes
+O `root-app.yaml` (nome `ct-framework`) escaneia `apps-core/` com recurse e cria os namespaces, o ingress-nginx, os 3 microsservicos e os ApplicationSets.
 
-### 🔧 Configurando seu ACR
+O `root-app-o11y.yaml` (nome `ct-framework-o11y`) escaneia `apps-o11y/` e cria o namespace observability com Alloy, Grafana, Loki, Mimir, Tempo e Pyroscope.
 
-Os microserviços (catalogo, pedido, pagamento) usam uma imagem nginx por padrão para demonstração.
+O `root-app-all.yaml` (nome `ct-framework-all`) e uma alternativa que escaneia ambos os diretorios. Nao e usado por padrao.
 
-Para usar seu próprio ACR, edite os arquivos em `deploy/helm/values/`:
+Ambos os root-apps usam sync automatizado com `prune: true` e `selfHeal: true`.
 
-```yaml
-image:
-  # Substitua pelo seu ACR
-  # Exemplo: acrctframework.azurecr.io/catalogo
-  repository: <SEU_ACR>.azurecr.io/catalogo
-  tag: "latest"
-```
+## Configuracao do ACR
 
-**Aplicar mudanças:**
-```bash
-# Após editar e commitar, force sync
-kubectl patch application catalogo -n argocd -p '{"operation":"sync"}' --type=merge
-```
-
-### 🔧 Configurando DNS e Ingress
-
-O Ingress Controller usa **IP dinâmico** do Azure por padrão. Para configurar seu domínio:
+Os arquivos de values em `deploy/helm/values/` referenciam imagens no ACR. Antes do primeiro deploy, substitua o placeholder:
 
 ```bash
-# 1. Obter o IP atribuído pelo Azure
-kubectl get svc -n ingress-nginx
-# Anote o valor em EXTERNAL-IP
-
-# 2. Configure seu DNS para apontar para este IP
-# catalogo.dorigao.dev.br -> <IP_DO_INGRESS>
-# pedido.dorigao.dev.br -> <IP_DO_INGRESS>
-# pagamento.dorigao.dev.br -> <IP_DO_INGRESS>
+# Em todos os arquivos de values:
+# de: acrctframework.azurecr.io/svc-catalogo
+# para: <SEU_ACR_LOGIN_SERVER>/svc-catalogo
 ```
 
-**Para usar IP estático:**
+Os 3 arquivos de values sao: `catalogo.yaml`, `pagamento.yaml`, `pedido.yaml`.
 
-Edite `apps-core/ingress-nginx.yaml` e adicione:
+Cada values define: 2 replicas, ingress via NGINX com host `{servico}.dorigao.dev.br`, variaveis OTel, init container do Pyroscope, health probes e limites de recursos.
 
-```yaml
-controller:
-  service:
-    type: LoadBalancer
-    loadBalancerIP: "SEU.IP.AQUI.ESTATICO"
-```
+## Configuracao de DNS
 
-### 🔧 Configurando ArgoCD UI
+O IP publico do ingress-nginx deve ser configurado nos registros DNS dos dominios:
 
-Por padrão, o ArgoCD é acessível apenas via port-forward:
+- `catalogo.dorigao.dev.br`
+- `pagamento.dorigao.dev.br`
+- `pedido.dorigao.dev.br`
+- `argocd.dorigao.dev.br` (se o ingress do Argo CD estiver habilitado)
+
+Obtenha o IP externo do ingress:
 
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl -n ingress-nginx get svc ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
-Acesse: https://localhost:8080
+## Componentes de observabilidade
 
-**Credenciais:**
-- Username: `admin`
-- Password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d`
+| Componente | Funcao | URL interna |
+|---|---|---|
+| Alloy | Collector OTLP (metrics, logs, traces) | `alloy.observability.svc.cluster.local:4318` |
+| Grafana | Dashboards e visualizacao | `grafana.observability.svc.cluster.local:80` |
+| Loki | Armazenamento de logs | `loki.observability.svc.cluster.local:3100` |
+| Mimir | Armazenamento de metricas | `mimir.observability.svc.cluster.local:9009` |
+| Tempo | Armazenamento de traces | `tempo.observability.svc.cluster.local:3200` |
+| Pyroscope | Profiling continuo | `pyroscope.observability.svc.cluster.local:4040` |
 
-Para expor via DNS, edite `argocd-ingress/ingress.yaml` com seu domínio e certificado.
+## Acesso
 
-## 📊 Componentes
-
-### Observability Stack
-
-| Componente | Propósito | URL Interna |
-|------------|-----------|-------------|
-| **Alloy** | Coletor OTLP | `alloy.observability.svc.cluster.local:4318` |
-| **Grafana** | Dashboards | `grafana.observability.svc.cluster.local:3000` |
-| **Loki** | Logs | `loki-gateway.observability.svc.cluster.local:4318` |
-| **Mimir** | Métricas | `mimir-distributed-nginx.observability.svc.cluster.local:4318` |
-| **Tempo** | Traces | `tempo.observability.svc.cluster.local:4318` |
-| **Pyroscope** | Profiling | `pyroscope.observability.svc.cluster.local:4040` |
-
-### Acesso ao Grafana
+**Argo CD** (port-forward):
 
 ```bash
-# Port-forward
-kubectl port-forward svc/grafana -n observability 3000:80
-
-# Acesse http://localhost:3000
-# Login: admin / changeme (altere no arquivo grafana.yaml)
+kubectl -n argocd port-forward svc/argocd-server 8080:443
+# https://localhost:8080
 ```
 
-## 🔍 Troubleshooting
-
-### Aplicações em estado "Unknown"
+Senha inicial:
 
 ```bash
-# Verificar detalhes
-kubectl describe application <nome> -n argocd
-
-# Forçar sincronização
-kubectl patch application <nome> -n argocd -p '{"operation":"sync"}' --type=merge
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
 ```
 
-### Pods com ImagePullBackOff
-
-Verifique se o AKS tem acesso ao ACR:
+**Grafana** (port-forward):
 
 ```bash
-# Conectar ACR ao AKS
-az aks update --name <AKS_NAME> --resource-group <AKS_RG> --attach-acr <ACR_NAME>
+kubectl -n observability port-forward svc/grafana 3000:80
+# http://localhost:3000
 ```
 
-### Logs do ArgoCD
+## Troubleshooting basico
+
+**Argo CD nao sincroniza os apps.** Verifique se o repositorio esta registrado e se o token de acesso esta valido:
 
 ```bash
-kubectl logs -n argocd deployment/argocd-application-controller --tail=100
+kubectl -n argocd get secret github-token -o jsonpath='{.data.token}' | base64 -d
 ```
 
-## 📝 Notas
+**ApplicationSet SCM nao descobre repositorios.** Confirme que os repositorios `svc-*` na organizacao `Dorigao-LTDA` possuem a label `auto-deploy`.
 
-- Namespaces são criados automaticamente pelos manifests em `apps-core/` e `apps-o11y/`
-- Todas as aplicações têm syncPolicy automático habilitado
-- O alloy (observability) tem `selfHeal: false` para evitar conflitos de configuração
-- Os microserviços são configurados via Helm chart genérico em `deploy/helm/service-chart/`
-- OTLP (OpenTelemetry) está configurado por padrão em todos os serviços
+**Imagens com erro ImagePullBackOff.** Verifique se o ACR login server nos values esta correto e se o role assignment AcrPull do AKS esta ativo:
 
-## 🔗 Links
+```bash
+kubectl -n app get pods -o wide
+kubectl -n app describe pod <POD_NAME> | grep -A5 Events
+```
 
-- [Repositório Infra Platform](https://github.com/Dorigao-LTDA/infra-platform)
-- [Documentação ArgoCD](https://argo-cd.readthedocs.io/)
-- [Helm Charts NGINX Ingress](https://kubernetes.github.io/ingress-nginx/)
+**Servicos de observabilidade em CrashLoopBackOff.** Verifique os logs e os recursos disponiveis no cluster:
+
+```bash
+kubectl -n observability get pods
+kubectl -n observability logs <POD_NAME>
+kubectl top nodes
+```
+
+## Links
+
+- [infra-platform](../infra-platform/README.md): IaC e pipeline de bootstrap
+- [Arquitetura](../docs/architecture.md): diagramas e fluxos
+- [Guia do desenvolvedor](../docs/developer-guide.md): passo a passo completo

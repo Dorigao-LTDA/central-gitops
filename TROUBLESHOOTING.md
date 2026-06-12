@@ -1,21 +1,11 @@
-# 🚨 Troubleshooting GitOps
+# Troubleshooting GitOps
 
-Guia de resolução de problemas comuns no deploy do GitOps com ArgoCD.
+Guia de resolucao de problemas comuns no deploy do GitOps com Argo CD.
 
-## Problema: "As aplicações não aparecem no ArgoCD"
-
-### Diagnóstico Rápido
-
-Execute este script no terminal:
+## Diagnostico rapido
 
 ```bash
-curl -s https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/diagnose-gitops.sh | bash
-```
-
-Ou execute os comandos manualmente:
-
-```bash
-# 1. Verificar se ArgoCD está instalado
+# 1. Verificar se Argo CD esta instalado
 kubectl get pods -n argocd
 
 # 2. Verificar se root applications foram aplicadas
@@ -24,237 +14,146 @@ kubectl get applications -n argocd
 # 3. Verificar ApplicationSets
 kubectl get applicationsets -n argocd
 
-# 4. Verificar logs do ArgoCD
+# 4. Verificar logs do Argo CD
 kubectl logs -n argocd deployment/argocd-application-controller --tail=50
 ```
 
----
+## Causas comuns
 
-## Causas Comuns e Soluções
+### Root applications nao aplicadas
 
-### ❌ Causa 1: Root Applications Não Aplicadas
+Sintomas: `kubectl get applications -n argocd` retorna "No resources found". Pods do Argo CD existem mas nao ha aplicacoes.
 
-**Sintomas:**
-- `kubectl get applications -n argocd` retorna "No resources found"
-- Pods do ArgoCD existem mas não há aplicações
+Solucao:
 
-**Solução:**
 ```bash
-# Aplicar root applications manualmente
 kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app.yaml
 kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app-o11y.yaml
 
-# Verificar
 kubectl get applications -n argocd
 ```
 
----
+### ApplicationSets nao aplicados
 
-### ❌ Causa 2: ApplicationSets Não Aplicados (CORRIGIDO em 02/05/2026)
+Sintomas: aplicacoes estaticas (catalogo, pedido, pagamento) aparecem mas ApplicationSets nao. `kubectl get applicationsets -n argocd` retorna vazio.
 
-**Sintomas:**
-- Aplicações estáticas (catalogo, pedido, pagamento) aparecem mas ApplicationSets não
-- `kubectl get applicationsets -n argocd` retorna vazio
+Os ApplicationSets foram movidos para dentro do diretorio `apps-core/` para serem descobertos pelo root-app. Force a sincronizacao:
 
-**Solução:**
 ```bash
-# Verificar se ApplicationSets existem no repositório
-curl -s https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/apps-core/applicationset.yaml | head -5
-curl -s https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/apps-core/applicationset-scm.yaml | head -5
-
-# Se existirem, force a sincronização do root-app
 kubectl patch application ct-framework -n argocd -p '{"operation":"sync"}' --type=merge
 ```
 
-**Nota:** Este problema foi corrigido movendo os ApplicationSets para dentro do diretório `apps-core/`.
+### Aplicacoes em estado "Unknown"
 
----
+Sintomas: `kubectl get applications -n argocd` mostra STATUS como "Unknown". Apps nao sincronizam automaticamente.
 
-### ❌ Causa 3: Aplicações em Estado "Unknown"
+Solucao:
 
-**Sintomas:**
-- `kubectl get applications -n argocd` mostra STATUS como "Unknown"
-- Apps não sincronizam automaticamente
-
-**Solução:**
 ```bash
-# Forçar sincronização
 kubectl patch application ct-framework -n argocd -p '{"operation":"sync"}' --type=merge
 kubectl patch application ct-framework-o11y -n argocd -p '{"operation":"sync"}' --type=merge
+```
 
-# Ou usando argocd CLI
+Ou via argocd CLI:
+
+```bash
 argocd login localhost:8080
 argocd app sync ct-framework
 argocd app sync ct-framework-o11y
 ```
 
----
+### Erro "path does not exist"
 
-### ❌ Causa 4: Erro "path does not exist"
+Sintomas: application mostra erro "path apps-core/catalogo does not exist".
 
-**Sintomas:**
-- Application mostra erro: "path apps-core/catalogo does not exist"
-- Diretórios não encontrados no repo
+O repositorio central-gitops nao tem os arquivos necessarios. Verifique:
 
-**Causa:** O repositório central-gitops não tem os arquivos necessários
-
-**Solução:**
-Verifique se todos os diretórios existem:
 ```bash
-# Deve retornar conteúdo
 curl -s https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/apps-core/catalogo.yaml | head -5
 curl -s https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/deploy/helm/service-chart/Chart.yaml | head -5
 ```
 
-Se faltarem arquivos, atualize o repositório central-gitops.
+Se faltarem arquivos, atualize o repositorio central-gitops.
 
----
+### Helm charts nao encontrados
 
-### ❌ Causa 5: Helm Charts Não Encontrados
+Sintomas: erros como "chart grafana not found".
 
-**Sintomas:**
-- Erros como "chart "grafana" not found"
-- Repositórios Helm não configurados
+O Argo CD baixa charts automaticamente dos repositorios Helm configurados. Verifique conectividade:
 
-**Verificação:**
 ```bash
-# Verificar se ArgoCD consegue acessar os repositórios Helm
-kubectl exec -n argocd deployment/argocd-server -- helm repo list
-```
-
-**Solução:**
-O ArgoCD baixa charts automaticamente, mas pode haver problema de conectividade. Verifique:
-```bash
-# Testar conectividade
 kubectl exec -n argocd deployment/argocd-server -- wget -qO- https://grafana.github.io/helm-charts/index.yaml | head -5
 ```
 
----
+### Namespaces nao criados
 
-### ❌ Causa 6: Namespaces Não Criados
+Sintomas: erro "namespace observability not found".
 
-**Sintomas:**
-- Erro: "namespace observability not found"
-- Pods não são criados
+Solucao:
 
-**Solução:**
 ```bash
-# Criar namespaces manualmente
-kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace app --dry-run=client -o yaml | kubectl apply -f -
-kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f -
-
-# Ou force recriação
 kubectl create namespace observability 2>/dev/null || true
+kubectl create namespace app 2>/dev/null || true
+kubectl create namespace ingress-nginx 2>/dev/null || true
 ```
 
----
-
-## 🔍 Debugging Avançado
-
-### Verificar Estado Detalhado de uma Application
+## Debugging avancado
 
 ```bash
+# Estado detalhado de uma application
 kubectl describe application ct-framework -n argocd
-```
 
-### Ver Logs do ArgoCD Application Controller
-
-```bash
-# Logs em tempo real
+# Logs do Argo CD application controller em tempo real
 kubectl logs -n argocd deployment/argocd-application-controller -f
 
-# Últimas 100 linhas
-kubectl logs -n argocd deployment/argocd-application-controller --tail=100
-```
-
-### Ver Eventos do Cluster
-
-```bash
-# Todos os eventos
+# Eventos do cluster
 kubectl get events --all-namespaces --sort-by='.lastTimestamp'
 
-# Eventos do ArgoCD
-kubectl get events -n argocd --sort-by='.lastTimestamp'
-```
-
-### Recriar uma Application Específica
-
-```bash
-# Deletar e recriar
+# Recriar uma application especifica
 kubectl delete application catalogo -n argocd
 kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/apps-core/catalogo.yaml
 ```
 
----
+## Bootstrap manual completo
 
-## 🔄 Fluxo de Bootstrap Correto
-
-Se tudo falhar, execute o bootstrap manual completo:
+Se todos os passos anteriores falharem, execute o bootstrap manual:
 
 ```bash
-#!/bin/bash
-set -e
-
-echo "🚀 GitOps Manual Bootstrap"
-echo ""
-
-# 1. Configurar acesso
+# 1. Configurar acesso ao cluster
 az aks get-credentials --resource-group <RG> --name <AKS>
 
 # 2. Criar namespaces
-echo "Criando namespaces..."
 kubectl create namespace observability 2>/dev/null || true
 kubectl create namespace app 2>/dev/null || true
 kubectl create namespace ingress-nginx 2>/dev/null || true
 
 # 3. Aplicar root applications
-echo "Aplicando root applications..."
 kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app.yaml
 kubectl apply -f https://raw.githubusercontent.com/Dorigao-LTDA/central-gitops/main/root-app-o11y.yaml
 
-# 4. Aguardar
-echo "Aguardando 30 segundos..."
+# 4. Aguardar sincronizacao
 sleep 30
 
-# 5. Verificar
-echo "Status das aplicações:"
+# 5. Verificar status
 kubectl get applications -n argocd
 
-# 6. Forçar sync se necessário
-echo "Forçando sincronização..."
+# 6. Forcar sync se necessario
 kubectl patch application ct-framework -n argocd -p '{"operation":"sync"}' --type=merge 2>/dev/null || true
 kubectl patch application ct-framework-o11y -n argocd -p '{"operation":"sync"}' --type=merge 2>/dev/null || true
-
-echo ""
-echo "✅ Bootstrap completo!"
-echo "Verifique em: kubectl get applications -n argocd -w"
 ```
 
----
+## Checklist pos-deploy
 
-## 📝 Checklist de Verificação
-
-Após o deploy, verifique:
-
-- [ ] Pods do ArgoCD estão running (`kubectl get pods -n argocd`)
+- [ ] Pods do Argo CD estao running (`kubectl get pods -n argocd`)
 - [ ] Root applications existem (`kubectl get applications -n argocd`)
 - [ ] ApplicationSets existem (`kubectl get applicationsets -n argocd`)
 - [ ] Namespaces criados: argocd, observability, app, ingress-nginx
 - [ ] Ingress nginx foi deployado (`kubectl get pods -n ingress-nginx`)
 - [ ] Observabilidade foi deployada (`kubectl get pods -n observability`)
-- [ ] Microserviços aparecem no ArgoCD UI
+- [ ] Microsservicos aparecem no Argo CD UI
 
----
+## Links
 
-## 🆘 Ainda com Problemas?
-
-1. Verifique se você está na branch correta do central-gitops
-2. Confirme que o repositório está público ou que ArgoCD tem acesso
-3. Verifique se há algum webhook ou branch protection bloqueando
-4. Consulte os logs completos do ArgoCD
-
-**Links Úteis:**
-- [Documentação ArgoCD](https://argo-cd.readthedocs.io/)
-- [Repositório central-gitops](https://github.com/Dorigao-LTDA/central-gitops)
-- [Repositório infra-platform](https://github.com/Dorigao-LTDA/infra-platform)
+- [Documentacao Argo CD](https://argo-cd.readthedocs.io/)
+- [Repositorio central-gitops](https://github.com/Dorigao-LTDA/central-gitops)
+- [Repositorio infra-platform](https://github.com/Dorigao-LTDA/infra-platform)
