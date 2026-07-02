@@ -20,18 +20,12 @@ spec:
                   endpoint: "0.0.0.0:4317"
                 http:
                   endpoint: "0.0.0.0:4318"
-          distributors:
-            replicas: 1
-          ingesters:
-            replicas: 1
-          queriers:
-            replicas: 1
-          queryFrontend:
-            replicas: 1
-          compactor:
-            replicas: 1
+          # Chart monolítico (single-binary): replicas, distributors.*,
+          # ingesters.*, queriers.* etc. não são chaves válidas deste chart —
+          # elas existem apenas no chart `tempo-distributed`. O binário único
+          # já roda todos os módulos, então basta manter receivers + retention.
           metricsGenerator:
-            replicas: 1
+            enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

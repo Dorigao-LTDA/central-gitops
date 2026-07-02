@@ -11,10 +11,50 @@ spec:
     targetRevision: "6.0.6"
     helm:
       values: |
+        # Arquitetura "classic" (sem Kafka): o distribuidor envia séries
+        # direto para os ingesters — mesma topologia do mimir-distributed 5.x.
+        # Evita o statefulset do Kafka e respectivo PVC, reduzindo o footprint
+        # em um cluster recém-bootstrapped.
+        kafka:
+          enabled: false
+
         mimir:
           structuredConfig:
+            ingest_storage:
+              enabled: false
+              kafka:
+                address: null
+                topic: null
+                auto_create_topic_default_partitions: null
+            distributor:
+              remote_timeout: null
+            ingester:
+              push_grpc_method_enabled: null
             limits:
               ingestion_rate: 20000
+
+        # Single-zone para 1 ingester + 1 store-gateway: dispensa os 9 pods
+        # que o zone-aware cria (3 ingesters + 3 store-gateways + 3 alertmanagers)
+        ingester:
+          replicas: 1
+          zoneAwareReplication:
+            enabled: false
+
+        store_gateway:
+          replicas: 1
+          zoneAwareReplication:
+            enabled: false
+
+        alertmanager:
+          replicas: 1
+          zoneAwareReplication:
+            enabled: false
+
+        # O rollout-operator só ajuda nas transições zone-aware; sem zona,
+        # não agrega nada e reduz um pod extra.
+        rollout_operator:
+          enabled: false
+
         gateway:
           enabled: true
   destination:
