@@ -43,11 +43,18 @@ spec:
                 send_batch_size = 1000
                 timeout = "5s"
                 output {
-                  metrics = [otelcol.exporter.prometheusremotewrite.mimir.input]
+                  metrics = [otelcol.exporter.prometheus.mimir.input]
                 }
               }
 
-              otelcol.exporter.prometheusremotewrite "mimir" {
+              # ponytail: cadeia canônica OTLP→Mimir (doc upstream do Alloy).
+              # otelcol.exporter.prometheusremotewrite foi removido do Alloy;
+              # o caminho suportado é otelcol.exporter.prometheus → prometheus.remote_write.
+              otelcol.exporter.prometheus "mimir" {
+                forward_to = [prometheus.remote_write.mimir.receiver]
+              }
+
+              prometheus.remote_write "mimir" {
                 endpoint {
                   url = "http://mimir-gateway.observability.svc.cluster.local:80/api/v1/push"
                 }
