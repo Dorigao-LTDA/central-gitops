@@ -47,9 +47,8 @@ spec:
                 }
               }
 
-              # ponytail: cadeia canônica OTLP→Mimir (doc upstream do Alloy).
-              # otelcol.exporter.prometheusremotewrite foi removido do Alloy;
-              # o caminho suportado é otelcol.exporter.prometheus → prometheus.remote_write.
+              // otelcol.exporter.prometheusremotewrite foi removido do Alloy;
+              // o caminho suportado e otelcol.exporter.prometheus + prometheus.remote_write.
               otelcol.exporter.prometheus "mimir" {
                 forward_to = [prometheus.remote_write.mimir.receiver]
               }
