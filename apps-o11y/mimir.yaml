@@ -30,6 +30,9 @@ spec:
               remote_timeout: null
             ingester:
               push_grpc_method_enabled: null
+              ring:
+                unregister_on_shutdown: true
+                heartbeat_timeout: 1m
             limits:
               ingestion_rate: 20000
 

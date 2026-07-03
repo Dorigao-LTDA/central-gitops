@@ -25,7 +25,14 @@ spec:
           # elas existem apenas no chart `tempo-distributed`. O binário único
           # já roda todos os módulos, então basta manter receivers + retention.
           metricsGenerator:
-            enabled: false
+            enabled: true
+            remoteWriteUrl: "http://mimir-gateway.observability.svc.cluster.local:80/api/v1/push"
+            processor:
+              span_metrics:
+                enable_target_info: true
+              service_graphs:
+                wait: 10s
+                max_items: 10000
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
