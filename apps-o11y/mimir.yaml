@@ -43,7 +43,7 @@ spec:
             limits:
               ingestion_rate: 20000
 
-        store_gateway:
+        ingester:
           replicas: 1
           zoneAwareReplication:
             enabled: false
