@@ -34,12 +34,16 @@ spec:
                 replication_factor: 1
                 unregister_on_shutdown: true
                 heartbeat_timeout: 1m
+            ingester_client:
+              ring:
+                replication_factor: 1
+            store_gateway:
+              sharding_ring:
+                replication_factor: 1
             limits:
               ingestion_rate: 20000
 
-        # Single-zone para 1 ingester + 1 store-gateway: dispensa os 9 pods
-        # que o zone-aware cria (3 ingesters + 3 store-gateways + 3 alertmanagers)
-        ingester:
+        store_gateway:
           replicas: 1
           zoneAwareReplication:
             enabled: false
