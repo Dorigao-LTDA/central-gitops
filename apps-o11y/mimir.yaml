@@ -34,9 +34,6 @@ spec:
                 replication_factor: 1
                 unregister_on_shutdown: true
                 heartbeat_timeout: 1m
-            ingester_client:
-              ring:
-                replication_factor: 1
             store_gateway:
               sharding_ring:
                 replication_factor: 1
