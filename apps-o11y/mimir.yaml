@@ -31,6 +31,7 @@ spec:
             ingester:
               push_grpc_method_enabled: null
               ring:
+                replication_factor: 1
                 unregister_on_shutdown: true
                 heartbeat_timeout: 1m
             limits:
