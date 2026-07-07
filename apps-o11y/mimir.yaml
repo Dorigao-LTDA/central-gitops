@@ -32,8 +32,9 @@ spec:
               push_grpc_method_enabled: null
               ring:
                 replication_factor: 1
+                heartbeat_period: 15s
+                heartbeat_timeout: 2m
                 unregister_on_shutdown: true
-                heartbeat_timeout: 1m
             store_gateway:
               sharding_ring:
                 replication_factor: 1
