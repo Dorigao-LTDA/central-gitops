@@ -64,4 +64,4 @@ otel:
   serviceName: ""
   resourceAttributes: "service.namespace=default"
   tracesSampler: "parentbased_traceidratio"
-  tracesSamplerArg: "0.1"
+  tracesSamplerArg: "1.0"

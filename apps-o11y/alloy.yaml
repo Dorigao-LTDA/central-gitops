@@ -59,6 +59,66 @@ spec:
                 }
               }
 
+              // --- Infra metrics: cAdvisor (kubelet), KSM, node-exporter ---
+              // ponytail: scrape direto no kubelet:10250. AKS expõe cAdvisor em /metrics/cadvisor.
+              // Se o node role retornar __address__ na porta errada, o relabel força 10250.
+              discovery.kubernetes "nodes" {
+                role = "node"
+              }
+
+              prometheus.scrape "cadvisor" {
+                targets = discovery.kubernetes.nodes.targets
+                forward_to = [otelcol.processor.batch.mimir.input]
+                metrics_path = "/metrics/cadvisor"
+                scheme = "https"
+                tls_config {
+                  insecure_skip_verify = true
+                }
+                bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                job_name = "cadvisor"
+                scrape_interval = "60s"
+                relabel_config {
+                  source_labels = ["__address__"]
+                  regex = "(.+):(\\d+)"
+                  target_label = "__address__"
+                  replacement = "$1:10250"
+                  action = "replace"
+                }
+              }
+
+              // ponytail: discovery por pod label. KSM service name = release name = kube-state-metrics.
+              discovery.kubernetes "ksm_pod" {
+                role = "pod"
+                selectors {
+                  role = "pod"
+                  label = "app.kubernetes.io/name=kube-state-metrics"
+                }
+              }
+
+              prometheus.scrape "ksm" {
+                targets = discovery.kubernetes.ksm_pod.targets
+                forward_to = [otelcol.processor.batch.mimir.input]
+                job_name = "kube-state-metrics"
+                honor_labels = true
+                scrape_interval = "30s"
+              }
+
+              // ponytail: node-exporter é DaemonSet. Pod discovery garante 1 target por node.
+              discovery.kubernetes "node_exporter_pods" {
+                role = "pod"
+                selectors {
+                  role = "pod"
+                  label = "app.kubernetes.io/name=prometheus-node-exporter"
+                }
+              }
+
+              prometheus.scrape "node_exporter" {
+                targets = discovery.kubernetes.node_exporter_pods.targets
+                forward_to = [otelcol.processor.batch.mimir.input]
+                job_name = "node-exporter"
+                scrape_interval = "30s"
+              }
+
               otelcol.exporter.otlphttp "loki" {
                 client {
                   endpoint = "http://loki.observability.svc.cluster.local:3100/otlp"

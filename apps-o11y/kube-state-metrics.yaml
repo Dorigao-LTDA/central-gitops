@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-state-metrics
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-state-metrics
+    targetRevision: "5.27.*"
+    helm:
+      values: |
+        # ponytail: metricLabelsAllowlist só para labels que usamos em joins
+        metricLabelsAllowlist:
+          - "pods=[app,app.kubernetes.io/name]"
+          - "deployments=[app,app.kubernetes.io/name]"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

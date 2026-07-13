@@ -21,22 +21,208 @@ spec:
             apiVersion: 1
             datasources:
             - name: Mimir
+              uid: mimir
               type: prometheus
               url: http://mimir-gateway.observability.svc.cluster.local:80/prometheus
               access: proxy
               isDefault: true
+              jsonData:
+                httpMethod: POST
+                prometheusType: Mimir
             - name: Loki
+              uid: loki
               type: loki
               url: http://loki.observability.svc.cluster.local:3100
               access: proxy
+              jsonData:
+                maxLines: 1000
             - name: Tempo
+              uid: tempo
               type: tempo
               url: http://tempo.observability.svc.cluster.local:3200
               access: proxy
+              jsonData:
+                tracesToLogs:
+                  datasourceUid: loki
+                  tags: ["service_name","k8s_namespace_name","k8s_pod_name"]
+                  mappedTags:
+                    - key: service_name
+                      value: service_name
+                  mapTagNamesEnabled: true
+                serviceMap:
+                  datasourceUid: mimir
+                nodeGraph:
+                  enabled: true
             - name: Pyroscope
+              uid: pyroscope
               type: grafana-pyroscope-datasource
               url: http://pyroscope.observability.svc.cluster.local:4040
               access: proxy
+
+        dashboardProviders:
+          dashboardproviders.yaml:
+            apiVersion: 1
+            providers:
+              - name: fixed
+                orgId: 1
+                folder: "TCC Fixed"
+                type: file
+                disableDeletion: false
+                editable: true
+                updateIntervalSeconds: 30
+                options:
+                  path: /var/lib/grafana/dashboards/fixed
+
+        sidecar:
+          dashboards:
+            enabled: true
+            label: grafana_dashboard
+            labelValue: "1"
+            folder: /var/lib/grafana/dashboards/fixed
+            searchNamespace: observability
+
+        dashboards:
+          fixed:
+            k8s-health:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "k8s-health",
+                  "title": "K8s Cluster Health",
+                  "tags": ["tcc","k8s"],
+                  "timezone": "browser",
+                  "refresh": "30s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "templating": {
+                    "list": [
+                      {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "mimir"}, "query": "label_values(kube_pod_status_phase, namespace)", "refresh": 2, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+                    ]
+                  },
+                  "panels": [
+                    {"id": 1, "type": "stat", "title": "Pods Running", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "count(kube_pod_status_phase{phase=\"Running\",namespace=~\"$namespace\"})", "refId": "A"}], "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4}, "options": {"reduceOptions": {"calcs": ["last"], "values": false}}},
+                    {"id": 2, "type": "stat", "title": "Pods Not Ready", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "count(kube_pod_status_ready{condition=\"true\",namespace=~\"$namespace\"} == 0)", "refId": "A"}], "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4}, "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}} ,
+                    {"id": 3, "type": "stat", "title": "Total Restarts (last 1h)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4}, "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 3}, {"color": "red", "value": 10}]}}}} ,
+                    {"id": 4, "type": "stat", "title": "OOMKilled Pods (last 1h)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "sum(increase(kube_pod_container_status_terminated_reason{reason=\"OOMKilled\",namespace=~\"$namespace\"}[1h]))", "refId": "A"}], "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4}, "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}} ,
+                    {"id": 5, "type": "timeseries", "title": "Pod Restarts Over Time", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[5m])", "legendFormat": "{{namespace}}/{{pod}}/{{container}}", "refId": "A"}], "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8}},
+                    {"id": 6, "type": "table", "title": "Pods with Issues", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "kube_pod_container_status_terminated_reason{namespace=~\"$namespace\"}", "format": "table", "instant": true, "refId": "A"}], "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8}, "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "Value": true, "__name__": true, "container": false, "namespace": false, "pod": false, "reason": false}}}]},
+                    {"id": 7, "type": "timeseries", "title": "Deployment Ready vs Desired Replicas", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "kube_deployment_status_replicas_available{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}/{{deployment}} ready", "refId": "A"}, {"expr": "kube_deployment_status_replicas_desired{namespace=~\"$namespace\"}", "legendFormat": "{{namespace}}/{{deployment}} desired", "refId": "B"}], "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8}}
+                  ]
+                }
+            container-resources:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "container-resources",
+                  "title": "Container Resources (Memory & CPU)",
+                  "tags": ["tcc","k8s","resources"],
+                  "timezone": "browser",
+                  "refresh": "15s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "templating": {
+                    "list": [
+                      {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "mimir"}, "query": "label_values(container_memory_working_set_bytes, namespace)", "refresh": 2, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+                    ]
+                  },
+                  "panels": [
+                    {"id": 1, "type": "timeseries", "title": "Memory Working Set (bytes)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"}", "legendFormat": "{{namespace}}/{{pod}}/{{container}}", "refId": "A"}], "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "bytes"}}},
+                    {"id": 2, "type": "timeseries", "title": "Memory Usage vs Limit (%)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"} / on(namespace,pod,container) kube_pod_container_resource_limits{resource=\"memory\",namespace=~\"$namespace\"} * 100", "legendFormat": "{{pod}}/{{container}}", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}}},
+                    {"id": 3, "type": "timeseries", "title": "CPU Usage (cores)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"}[5m])", "legendFormat": "{{namespace}}/{{pod}}/{{container}}", "refId": "A"}], "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "none"}}},
+                    {"id": 4, "type": "timeseries", "title": "CPU Usage vs Limit (%)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"}[5m]) / on(namespace,pod,container) kube_pod_container_resource_limits{resource=\"cpu\",namespace=~\"$namespace\"} * 100", "legendFormat": "{{pod}}/{{container}}", "refId": "A"}], "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 90}]}}}},
+                    {"id": 5, "type": "stat", "title": "Pods > 85% Memory Limit", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "count(container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"} / on(namespace,pod,container) kube_pod_container_resource_limits{resource=\"memory\"} > 0.85)", "refId": "A"}], "gridPos": {"x": 0, "y": 16, "w": 8, "h": 4}, "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
+                    {"id": 6, "type": "stat", "title": "Top Pod by Memory", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "topk(1, container_memory_working_set_bytes{namespace=~\"$namespace\",container!=\"\",container!=\"POD\"})", "refId": "A", "instant": true}], "gridPos": {"x": 8, "y": 16, "w": 16, "h": 4}, "fieldConfig": {"defaults": {"unit": "bytes"}}}
+                  ]
+                }
+            node-resources:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "node-resources",
+                  "title": "Node Resources",
+                  "tags": ["tcc","node"],
+                  "timezone": "browser",
+                  "refresh": "30s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "panels": [
+                    {"id": 1, "type": "timeseries", "title": "CPU Usage % per Node", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) by (node))", "legendFormat": "{{node}}", "refId": "A"}], "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}}},
+                    {"id": 2, "type": "timeseries", "title": "Memory Usage % per Node", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "(node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100", "legendFormat": "{{node}}", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}}},
+                    {"id": 3, "type": "timeseries", "title": "Disk Available (root)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}", "legendFormat": "{{node}}", "refId": "A"}], "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "bytes"}}},
+                    {"id": 4, "type": "timeseries", "title": "Network RX/TX (bytes/s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "rate(node_network_receive_bytes_total{device!~\"lo\"}[5m])", "legendFormat": "RX {{node}}", "refId": "A"}, {"expr": "rate(node_network_transmit_bytes_total{device!~\"lo\"}[5m])", "legendFormat": "TX {{node}}", "refId": "B"}], "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "Bps"}}},
+                    {"id": 5, "type": "timeseries", "title": "Load Average", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "node_load1", "legendFormat": "{{node}}", "refId": "A"}], "gridPos": {"x": 0, "y": 16, "w": 24, "h": 6}}
+                  ]
+                }
+            jvm-runtime:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "jvm-runtime",
+                  "title": "JVM Runtime (per Service)",
+                  "tags": ["tcc","jvm","java"],
+                  "timezone": "browser",
+                  "refresh": "15s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "templating": {
+                    "list": [
+                      {"name": "service", "type": "query", "datasource": {"type": "prometheus", "uid": "mimir"}, "query": "label_values(jvm_memory_used_bytes, service_name)", "refresh": 2, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+                    ]
+                  },
+                  "panels": [
+                    {"id": 1, "type": "timeseries", "title": "Heap Used vs Max (bytes)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "jvm_memory_used_bytes{area=\"heap\",service_name=~\"$service\"}", "legendFormat": "used {{service_name}} {{id}}", "refId": "A"}, {"expr": "jvm_memory_max_bytes{area=\"heap\",service_name=~\"$service\"}", "legendFormat": "max {{service_name}} {{id}}", "refId": "B"}], "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "bytes"}}},
+                    {"id": 2, "type": "timeseries", "title": "Heap Usage %", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "jvm_memory_used_bytes{area=\"heap\",service_name=~\"$service\"} / jvm_memory_max_bytes{area=\"heap\",service_name=~\"$service\"} * 100", "legendFormat": "{{service_name}} {{id}}", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 70}, {"color": "red", "value": 85}]}}}},
+                    {"id": 3, "type": "timeseries", "title": "GC Pause Time (s/s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "rate(jvm_gc_pause_seconds_sum{service_name=~\"$service\"}[5m])", "legendFormat": "{{service_name}} {{action}} {{cause}}", "refId": "A"}], "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "s"}}},
+                    {"id": 4, "type": "timeseries", "title": "GC Count (/s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "rate(jvm_gc_pause_seconds_count{service_name=~\"$service\"}[5m])", "legendFormat": "{{service_name}} {{action}}", "refId": "A"}], "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}},
+                    {"id": 5, "type": "timeseries", "title": "Process CPU Usage", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "process_cpu_usage{service_name=~\"$service\"}", "legendFormat": "{{service_name}}", "refId": "A"}], "gridPos": {"x": 0, "y": 16, "w": 12, "h": 7}, "fieldConfig": {"defaults": {"unit": "percentunit"}}},
+                    {"id": 6, "type": "timeseries", "title": "Thread States", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "jvm_threads_states_threads{service_name=~\"$service\"}", "legendFormat": "{{service_name}} {{state}}", "refId": "A"}], "gridPos": {"x": 12, "y": 16, "w": 12, "h": 7}},
+                    {"id": 7, "type": "timeseries", "title": "Non-Heap Memory", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "jvm_memory_used_bytes{area=\"nonheap\",service_name=~\"$service\"}", "legendFormat": "{{service_name}} {{id}}", "refId": "A"}], "gridPos": {"x": 0, "y": 23, "w": 24, "h": 7}, "fieldConfig": {"defaults": {"unit": "bytes"}}}
+                  ]
+                }
+            http-red:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "http-red",
+                  "title": "HTTP RED (per Service — span metrics)",
+                  "tags": ["tcc","red","traces"],
+                  "timezone": "browser",
+                  "refresh": "15s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "templating": {
+                    "list": [
+                      {"name": "service", "type": "query", "datasource": {"type": "prometheus", "uid": "mimir"}, "query": "label_values(traces_span_metrics_calls_total, service_name)", "refresh": 2, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+                    ]
+                  },
+                  "panels": [
+                    {"id": 1, "type": "timeseries", "title": "Request Rate (req/s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[5m])) by (service_name)", "legendFormat": "{{service_name}}", "refId": "A"}], "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "reqps"}}},
+                    {"id": 2, "type": "timeseries", "title": "Error Rate % (5xx)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\",status_code=~\"5..\"}[5m])) by (service_name) / sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[5m])) by (service_name) * 100", "legendFormat": "{{service_name}}", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 1}, {"color": "red", "value": 5}]}}}},
+                    {"id": 3, "type": "timeseries", "title": "P95 Latency (s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_seconds_bucket{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[5m])) by (le, service_name))", "legendFormat": "{{service_name}} p95", "refId": "A"}], "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "s"}}},
+                    {"id": 4, "type": "timeseries", "title": "P99 Latency (s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_seconds_bucket{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[5m])) by (le, service_name))", "legendFormat": "{{service_name}} p99", "refId": "A"}], "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"unit": "s"}}},
+                    {"id": 5, "type": "timeseries", "title": "Request Rate by Operation (req/s)", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[5m])) by (service_name, span_name)", "legendFormat": "{{service_name}} {{span_name}}", "refId": "A"}], "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8}, "fieldConfig": {"defaults": {"unit": "reqps"}}},
+                    {"id": 6, "type": "stat", "title": "Top Error Rate Service", "datasource": {"type": "prometheus", "uid": "mimir"}, "targets": [{"expr": "topk(1, sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\",status_code=~\"5..\"}[5m])) by (service_name) / sum(rate(traces_span_metrics_calls_total{service_name=~\"$service\"}[5m])) by (service_name) * 100)", "refId": "A", "instant": true}], "gridPos": {"x": 0, "y": 24, "w": 24, "h": 4}, "fieldConfig": {"defaults": {"unit": "percent"}}}
+                  ]
+                }
+            logs-traces:
+              json: |-
+                {
+                  "schemaVersion": 39,
+                  "uid": "logs-traces",
+                  "title": "Logs & Traces Explorer",
+                  "tags": ["tcc","logs","traces"],
+                  "timezone": "browser",
+                  "refresh": "30s",
+                  "time": {"from": "now-1h", "to": "now"},
+                  "templating": {
+                    "list": [
+                      {"name": "service", "type": "query", "datasource": {"type": "loki", "uid": "loki"}, "query": "label_values({namespace=\"app\"}, service_name)", "refresh": 2, "includeAll": true, "current": {"text": "All", "value": ""}},
+                      {"name": "search", "type": "textbox", "default": "ERROR"}
+                    ]
+                  },
+                  "panels": [
+                    {"id": 1, "type": "timeseries", "title": "Log Rate by Service (lines/5m)", "datasource": {"type": "loki", "uid": "loki"}, "targets": [{"expr": "sum by (service_name) (count_over_time({namespace=\"app\", service_name=~\"$service\"} [5m]))", "legendFormat": "{{service_name}}", "refId": "A"}], "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}},
+                    {"id": 2, "type": "timeseries", "title": "Error Logs by Service (ERROR lines/5m)", "datasource": {"type": "loki", "uid": "loki"}, "targets": [{"expr": "sum by (service_name) (count_over_time({namespace=\"app\", service_name=~\"$service\"} |= \"$search\" [5m]))", "legendFormat": "{{service_name}} ERR", "refId": "A"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}, "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}},
+                    {"id": 3, "type": "logs", "title": "Recent Error Logs (with traceId)", "datasource": {"type": "loki", "uid": "loki"}, "targets": [{"expr": "{namespace=\"app\", service_name=~\"$service\"} |= \"$search\"", "refId": "A"}], "gridPos": {"x": 0, "y": 8, "w": 24, "h": 10}, "options": {"showTime": true, "showLabels": true, "dedupStrategy": "none"}},
+                    {"id": 4, "type": "table", "title": "Top 10 Error Traces by Service (Tempo)", "datasource": {"type": "tempo", "uid": "tempo"}, "targets": [{"expr": "{ service_name =~ \"$service\" AND status_code = STATUS_CODE_ERROR }", "refId": "A", "limit": 10}], "gridPos": {"x": 0, "y": 18, "w": 24, "h": 10}},
+                    {"id": 5, "type": "table", "title": "Slowest Traces > 500ms (Tempo)", "datasource": {"type": "tempo", "uid": "tempo"}, "targets": [{"refId": "A", "queryType": "traceql-search", "expr": "{ } | duration > 500ms", "limit": 10}], "gridPos": {"x": 0, "y": 28, "w": 24, "h": 10}}
+                  ]
+                }
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
