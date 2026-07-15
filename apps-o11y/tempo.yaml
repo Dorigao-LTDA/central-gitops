@@ -33,6 +33,16 @@ spec:
               service_graphs:
                 wait: 10s
                 max_items: 10000
+
+          # Habilita metrics_generator para o tenant single-tenant.
+          # Sem overrides.defaults.metrics_generator.processors, o gerador
+          # nunca enfileira spans para processar (enqueue_time=0).
+          overrides:
+            defaults:
+              metrics_generator:
+                processors:
+                  - service-graphs
+                  - span-metrics
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

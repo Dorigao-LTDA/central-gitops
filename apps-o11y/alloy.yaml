@@ -134,6 +134,42 @@ spec:
                 scrape_interval = "30s"
               }
 
+              // --- App metrics: Spring Boot Actuator /prometheus (JVM + HTTP) ---
+              // ponytail: discovery por pod label app no namespace app.
+              // Porta 8080, path /prometheus (fixo no path-mapping do application.yml).
+              // Relabel filtra apenas namespace=app e mapeia label app→service_name.
+              discovery.kubernetes "app_pods" {
+                role = "pod"
+                selectors {
+                  role = "pod"
+                  label = "app"
+                  field = "status.phase=Running"
+                }
+              }
+
+              prometheus.relabel "app_services" {
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                rule {
+                  action = "keep"
+                  source_labels = ["__meta_kubernetes_namespace"]
+                  regex = "app"
+                }
+                rule {
+                  action = "replace"
+                  source_labels = ["__meta_kubernetes_pod_label_app"]
+                  target_label = "service_name"
+                }
+              }
+
+              prometheus.scrape "app_services" {
+                targets = discovery.kubernetes.app_pods.targets
+                forward_to = [prometheus.relabel.app_services.receiver]
+                job_name = "spring-boot"
+                metrics_path = "/prometheus"
+                scrape_interval = "15s"
+                honor_labels = true
+              }
+
               otelcol.exporter.otlphttp "loki" {
                 client {
                   endpoint = "http://loki.observability.svc.cluster.local:3100/otlp"
