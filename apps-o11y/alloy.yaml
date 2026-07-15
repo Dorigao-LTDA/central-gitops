@@ -77,9 +77,20 @@ spec:
                 role = "node"
               }
 
+              prometheus.relabel "cadvisor" {
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                rule {
+                  source_labels = ["__address__"]
+                  regex = "(.+):(\\d+)"
+                  target_label = "__address__"
+                  replacement = "$1:10250"
+                  action = "replace"
+                }
+              }
+
               prometheus.scrape "cadvisor" {
                 targets = discovery.kubernetes.nodes.targets
-                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                forward_to = [prometheus.relabel.cadvisor.receiver]
                 metrics_path = "/metrics/cadvisor"
                 scheme = "https"
                 tls_config {
@@ -88,13 +99,6 @@ spec:
                 bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
                 job_name = "cadvisor"
                 scrape_interval = "60s"
-                relabel_config {
-                  source_labels = ["__address__"]
-                  regex = "(.+):(\\d+)"
-                  target_label = "__address__"
-                  replacement = "$1:10250"
-                  action = "replace"
-                }
               }
 
               // ponytail: discovery por pod label. KSM service name = release name = kube-state-metrics.
