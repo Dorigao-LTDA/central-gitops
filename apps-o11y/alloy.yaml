@@ -39,6 +39,17 @@ spec:
                 }
               }
 
+              // --- Ponte Prometheus → OTel ---
+              // prometheus.scrape produz dados do tipo Prometheus, mas
+              // otelcol.processor.batch espera dados OTel. O receiver
+              // abaixo converte o formato automaticamente.
+              // ponytail: receiver único para todos os scrapes de infra.
+              otelcol.receiver.prometheus "infra" {
+                output {
+                  metrics = [otelcol.processor.batch.mimir.input]
+                }
+              }
+
               otelcol.processor.batch "mimir" {
                 send_batch_size = 1000
                 timeout = "5s"
@@ -68,7 +79,7 @@ spec:
 
               prometheus.scrape "cadvisor" {
                 targets = discovery.kubernetes.nodes.targets
-                forward_to = [otelcol.processor.batch.mimir.input]
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
                 metrics_path = "/metrics/cadvisor"
                 scheme = "https"
                 tls_config {
@@ -97,7 +108,7 @@ spec:
 
               prometheus.scrape "ksm" {
                 targets = discovery.kubernetes.ksm_pod.targets
-                forward_to = [otelcol.processor.batch.mimir.input]
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
                 job_name = "kube-state-metrics"
                 honor_labels = true
                 scrape_interval = "30s"
@@ -114,7 +125,7 @@ spec:
 
               prometheus.scrape "node_exporter" {
                 targets = discovery.kubernetes.node_exporter_pods.targets
-                forward_to = [otelcol.processor.batch.mimir.input]
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
                 job_name = "node-exporter"
                 scrape_interval = "30s"
               }
