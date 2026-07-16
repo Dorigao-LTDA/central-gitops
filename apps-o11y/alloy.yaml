@@ -171,37 +171,21 @@ spec:
               }
 
               // --- Self-scrape: métricas internas dos componentes de observabilidade ---
-              // ponytail: static_config para 5 endpoints /metrics da stack.
-              // Sem isto, o dashboard "Infra Health" não tem dados no Mimir.
+              // ponytail: targets direto em prometheus.scrape. Sem isto, o
+              // dashboard "Infra Health" não tem dados no Mimir. Cada métrica
+              // tem nome único por origem (tempo_*, loki_*, pyroscope_*), então
+              // não precisa de label component para separar.
               prometheus.scrape "obs_self" {
                 forward_to = [otelcol.receiver.prometheus.infra.receiver]
                 scrape_interval = "30s"
                 job_name = "obs-self"
-
-                static_config {
-                  targets = ["alloy.observability.svc.cluster.local:12345"]
-                  labels  = { component = "alloy" }
-                }
-
-                static_config {
-                  targets = ["tempo.observability.svc.cluster.local:3200"]
-                  labels  = { component = "tempo" }
-                }
-
-                static_config {
-                  targets = ["loki.observability.svc.cluster.local:3100"]
-                  labels  = { component = "loki" }
-                }
-
-                static_config {
-                  targets = ["mimir-gateway.observability.svc.cluster.local:80"]
-                  labels  = { component = "mimir" }
-                }
-
-                static_config {
-                  targets = ["pyroscope.observability.svc.cluster.local:4040"]
-                  labels  = { component = "pyroscope" }
-                }
+                targets = [
+                  "alloy.observability.svc.cluster.local:12345",
+                  "tempo.observability.svc.cluster.local:3200",
+                  "loki.observability.svc.cluster.local:3100",
+                  "mimir-gateway.observability.svc.cluster.local:80",
+                  "pyroscope.observability.svc.cluster.local:4040",
+                ]
               }
 
               otelcol.exporter.otlphttp "loki" {
