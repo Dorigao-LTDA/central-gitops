@@ -171,21 +171,83 @@ spec:
               }
 
               // --- Self-scrape: métricas internas dos componentes de observabilidade ---
-              // ponytail: targets direto em prometheus.scrape. Sem isto, o
-              // dashboard "Infra Health" não tem dados no Mimir. Cada métrica
-              // tem nome único por origem (tempo_*, loki_*, pyroscope_*), então
-              // não precisa de label component para separar.
-              prometheus.scrape "obs_self" {
+              // ponytail: discovery.dns resolve os serviços via A records.
+              // Cada serviço expõe /metrics em portas diferentes:
+              //   alloy:12345  tempo:3200  loki:3100  mimir-gateway:80  pyroscope:4040
+              // Sem isto, o dashboard "Infra Health" não tem dados no Mimir.
+              discovery.dns "obs_alloy" {
+                names = ["alloy.observability.svc.cluster.local"]
+                type = "A"
+                port = 12345
+                refresh_interval = "60s"
+              }
+
+              prometheus.scrape "obs_alloy" {
+                targets = discovery.dns.obs_alloy.targets
                 forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                job_name = "obs-alloy"
                 scrape_interval = "30s"
-                job_name = "obs-self"
-                targets = [
-                  "alloy.observability.svc.cluster.local:12345",
-                  "tempo.observability.svc.cluster.local:3200",
-                  "loki.observability.svc.cluster.local:3100",
-                  "mimir-gateway.observability.svc.cluster.local:80",
-                  "pyroscope.observability.svc.cluster.local:4040",
-                ]
+                metrics_path = "/metrics"
+              }
+
+              discovery.dns "obs_tempo" {
+                names = ["tempo.observability.svc.cluster.local"]
+                type = "A"
+                port = 3200
+                refresh_interval = "60s"
+              }
+
+              prometheus.scrape "obs_tempo" {
+                targets = discovery.dns.obs_tempo.targets
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                job_name = "obs-tempo"
+                scrape_interval = "30s"
+                metrics_path = "/metrics"
+              }
+
+              discovery.dns "obs_loki" {
+                names = ["loki.observability.svc.cluster.local"]
+                type = "A"
+                port = 3100
+                refresh_interval = "60s"
+              }
+
+              prometheus.scrape "obs_loki" {
+                targets = discovery.dns.obs_loki.targets
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                job_name = "obs-loki"
+                scrape_interval = "30s"
+                metrics_path = "/metrics"
+              }
+
+              discovery.dns "obs_mimir" {
+                names = ["mimir-gateway.observability.svc.cluster.local"]
+                type = "A"
+                port = 80
+                refresh_interval = "60s"
+              }
+
+              prometheus.scrape "obs_mimir" {
+                targets = discovery.dns.obs_mimir.targets
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                job_name = "obs-mimir"
+                scrape_interval = "30s"
+                metrics_path = "/metrics"
+              }
+
+              discovery.dns "obs_pyroscope" {
+                names = ["pyroscope.observability.svc.cluster.local"]
+                type = "A"
+                port = 4040
+                refresh_interval = "60s"
+              }
+
+              prometheus.scrape "obs_pyroscope" {
+                targets = discovery.dns.obs_pyroscope.targets
+                forward_to = [otelcol.receiver.prometheus.infra.receiver]
+                job_name = "obs-pyroscope"
+                scrape_interval = "30s"
+                metrics_path = "/metrics"
               }
 
               otelcol.exporter.otlphttp "loki" {
