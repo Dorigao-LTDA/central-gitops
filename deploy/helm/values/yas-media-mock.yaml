@@ -1,0 +1,32 @@
+# Mock media service — dependência externa do yas-product para cenários de degradação.
+# Atacado por Chaos Mesh (NetworkChaos delay, PodChaos kill) para demonstrar como o
+# product-service lida com dependência lenta/indisponível.
+
+fullnameOverride: yas-media-mock
+
+replicaCount: 2
+
+image:
+  repository: acrctframework.azurecr.io/yas-media-mock
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+# label para o selector do Chaos Mesh (app: yas-media-mock)
+podLabels:
+  app: yas-media-mock
+
+otel:
+  enabled: false
+  serviceName: "yas-media-mock"

@@ -37,6 +37,10 @@ readinessProbe:
 extraEnv:
   - name: SPRING_PROFILES_ACTIVE
     value: "standalone"
+  # dependência media apontando para o mock real (atacável por Chaos Mesh)
+  # para cenários de degradação de dependência
+  - name: YAS_SERVICES_MEDIA
+    value: "http://yas-media-mock.app.svc.cluster.local:8080"
 
 resources:
   requests:
