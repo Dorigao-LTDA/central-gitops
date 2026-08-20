@@ -1,0 +1,58 @@
+# Configuração do microserviço YAS product-service (piloto de código externo)
+# Java 25 + Spring Boot 4 + H2 standalone (PostgreSQL/Keycloak mockados)
+
+fullnameOverride: yas-product
+
+replicaCount: 2
+
+image:
+  repository: acrctframework.azurecr.io/yas-product
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# context-path do YAS é /product; health check exposto em /product/actuator/health
+livenessProbe:
+  httpGet:
+    path: /product/actuator/health
+    port: 8080
+  initialDelaySeconds: 60
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 5
+
+readinessProbe:
+  httpGet:
+    path: /product/actuator/health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# profile standalone: H2 + security desabilitada (deps mockadas)
+extraEnv:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "standalone"
+
+resources:
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+  limits:
+    cpu: "500m"
+    memory: "1Gi"
+
+otel:
+  enabled: true
+  serviceName: "yas-product"
+  resourceAttributes: "service.namespace=app"
+  tracesSampler: "parentbased_traceidratio"
+  tracesSamplerArg: "1.0"
+
+# label para o selector do Chaos Mesh (app: yas-product)
+podLabels:
+  app: yas-product
