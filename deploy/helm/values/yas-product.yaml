@@ -60,3 +60,9 @@ otel:
 # label para o selector do Chaos Mesh (app: yas-product)
 podLabels:
   app: yas-product
+
+# o YAS tem context-path /product; o Prometheus fica em /product/actuator/prometheus
+# (o Alloy scraper padrão usa /prometheus — esta anotação corrige o path por pod)
+podAnnotations:
+  prometheus.io/path: /product/actuator/prometheus
+  prometheus.io/port: "8080"

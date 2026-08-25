@@ -159,6 +159,12 @@ spec:
                   source_labels = ["__meta_kubernetes_pod_label_app"]
                   target_label = "service_name"
                 }
+                rule {
+                  action = "replace"
+                  source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+                  target_label = "__metrics_path__"
+                  regex = "(.+)"
+                }
               }
 
               prometheus.scrape "app_services" {
