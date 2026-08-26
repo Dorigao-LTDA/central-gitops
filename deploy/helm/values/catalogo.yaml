@@ -3,7 +3,7 @@
 
 fullnameOverride: catalogo
 
-replicaCount: 2
+replicaCount: 1
 
 image:
   repository: acrctframework.azurecr.io/catalogo
